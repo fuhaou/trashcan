@@ -1,0 +1,125 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: staging-onex-passport
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: staging-onex-passport
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: staging-onex-passport
+    spec:
+      containers:
+        - name: staging-onex-passport
+          image: gcr.io/epsilo-285009/onex-passport:latest
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts:
+            - name: staging-onex-passport
+              mountPath: /usr/share/nginx/html/.env
+              subPath: .env
+          readinessProbe:
+            httpGet:
+              path: /api/health-check
+              port: 80
+            initialDelaySeconds: 5
+            failureThreshold: 60
+            periodSeconds: 3
+      volumes:
+        - name: staging-onex-passport
+          configMap:
+            name: staging-onex-passport
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: cloud.google.com/gke-preemptible
+                    operator: DoesNotExist
+
+
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: staging-onex-passport
+  namespace: staging
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: staging-onex-passport
+  minReplicas: 5
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        targetAverageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: 90
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: staging-onex-passport
+  namespace: staging
+spec:
+  selector:
+    app: staging-onex-passport
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+# Deployment cron
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: staging-onex-passport-cron-legacy
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: staging-onex-passport-cron-legacy
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: staging-onex-passport-cron-legacy
+    spec:
+      containers:
+        - name: staging-onex-passport-cron-legacy
+          image: gcr.io/epsilo-285009/onex-passport:latest
+          command: [ "sh", "-c", "/usr/local/bin/php /usr/share/nginx/html/artisan schedule:work" ]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 16Mi
+          volumeMounts:
+            - name: staging-onex-passport
+              mountPath: /usr/share/nginx/html/.env
+              subPath: .env
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: cloud.google.com/gke-preemptible
+                    operator: DoesNotExist
+      volumes:
+        - name: staging-onex-passport
+          configMap:
+            name: staging-onex-passport
+

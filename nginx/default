@@ -1,0 +1,19 @@
+server {
+    listen 80;
+    client_max_body_size 128M;
+    root /usr/share/nginx/html/public;
+    index index.php index.html index.htm;
+    server_name _;
+
+    location / {
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+
+    # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+
+    location ~ \.php$ {
+            fastcgi_pass localhost:9000;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+    }
+}

@@ -1,0 +1,39 @@
+version: '3.7'
+services:
+
+#### PHP ##########################################
+  php-fpm-onex-passport:
+    container_name: php-fpm-onex-passport
+    image: epsilion/php:7.4
+    restart: always
+    volumes:
+      - ../:/source_code
+      #- ../.env.dev:/source_code/.env
+
+## Nginx ################################################
+  nginx:
+    container_name: nginx
+    image: nginx:latest
+    restart: always
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/logs:/var/log/nginx
+      - ../:/source_code
+    ports:
+      - "80:80"
+
+### MySQL ################################################
+  mysql:
+    container_name: mysql
+    image: mysql:5.7.30
+    command: --default-authentication-plugin=mysql_native_password --sql_mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - ./database/mysql:/var/lib/mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: onex
+      MYSQL_USER: master
+      MYSQL_PASSWORD: master
+      MYSQL_ROOT_PASSWORD: Epsilo_5678
+    ports:
+      - "3306:3306"

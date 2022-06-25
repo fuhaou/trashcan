@@ -1,0 +1,125 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-onex-passport
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: dev-onex-passport
+  replicas: 1
+  minReadySeconds: 15
+  template:
+    metadata:
+      labels:
+        app: dev-onex-passport
+    spec:
+      containers:
+        - name: dev-onex-passport
+          image: gcr.io/epsilo-285009/onex-passport:latest
+          command: ["sh", "start.sh"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts:
+            - name: dev-onex-passport
+              mountPath: /usr/share/nginx/html/.env
+              subPath: .env
+          startupProbe:
+            httpGet:
+              path: /api/health-check
+              port: 80
+            failureThreshold: 30
+            periodSeconds: 10
+      volumes:
+        - name: dev-onex-passport
+          configMap:
+            name: dev-onex-passport
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: cloud.google.com/gke-preemptible
+                    operator: DoesNotExist
+
+
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dev-onex-passport
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dev-onex-passport
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        targetAverageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: 90
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dev-onex-passport
+  namespace: dev
+spec:
+  selector:
+    app: dev-onex-passport
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+#
+## Deployment cron
+#---
+#apiVersion: apps/v1
+#kind: Deployment
+#metadata:
+#  name: dev-onex-passport-cron-legacy
+#  namespace: dev
+#spec:
+#  selector:
+#    matchLabels:
+#      app: dev-onex-passport-cron-legacy
+#  replicas: 1
+#  template:
+#    metadata:
+#      labels:
+#        app: dev-onex-passport-cron-legacy
+#    spec:
+#      containers:
+#        - name: dev-onex-passport-cron-legacy
+#          image: gcr.io/epsilo-285009/onex-passport:latest
+#          command: [ "/bin/sh", "-c", "/usr/share/nginx/html/endless.sh" ]
+#          resources:
+#            requests:
+#              cpu: 1m
+#              memory: 16Mi
+#          volumeMounts:
+#            - name: dev-onex-passport
+#              mountPath: /usr/share/nginx/html/.env
+#              subPath: .env
+#      affinity:
+#        nodeAffinity:
+#          requiredDuringSchedulingIgnoredDuringExecution:
+#            nodeSelectorTerms:
+#              - matchExpressions:
+#                  - key: cloud.google.com/gke-preemptible
+#                    operator: DoesNotExist
+#      volumes:
+#        - name: dev-onex-passport
+#          configMap:
+#            name: dev-onex-passport

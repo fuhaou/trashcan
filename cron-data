@@ -1,0 +1,3 @@
+@hourly /usr/local/bin/php /usr/share/nginx/html/artisan command:check-cookie-valid >> /tmp/cron.log
+* * * * * /usr/local/bin/php /usr/share/nginx/html/artisan schedule:work >> /tmp/cron.log
+

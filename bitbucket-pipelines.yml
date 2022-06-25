@@ -1,0 +1,99 @@
+pipelines:
+  tags:
+    'release-*':
+      - step:
+          name: Retag and Repush Images Production
+          image: epsilion/gcloud:latest
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - export IMAGE_NAME=gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+            - export RELEASE_IMAGE_NAME=gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_TAG}
+            - export LATEST_IMAGE_NAME=gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:latest
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - docker pull $IMAGE_NAME
+            - docker tag $IMAGE_NAME $RELEASE_IMAGE_NAME
+            - docker tag $IMAGE_NAME $LATEST_IMAGE_NAME
+            - docker push $RELEASE_IMAGE_NAME
+            - docker push $LATEST_IMAGE_NAME
+          services:
+            - docker
+      - step:
+          name: Deploy to Production
+          image: epsilion/gcloud:latest
+          deployment: Production
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - sed -i "s/latest/"${BITBUCKET_TAG}"/g" ./k8s/prod-onex-passport.yml
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - gcloud container clusters get-credentials epsilo-production --region asia-southeast1 --project $GCLOUD_PROJECT_ID
+            - kubectl apply -f ./k8s/prod-onex-passport.yml
+
+  branches:
+    master:
+      - step:
+          name: Build and Push Docker Image
+          image: epsilion/gcloud:latest
+          caches:
+            - docker
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - docker build -t gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} .
+            - docker tag gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+            - docker push gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+          services:
+            - docker
+      - step:
+          name: Deploy to Staging
+          deployment: Staging
+          image: epsilion/gcloud:latest
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - sed -i "s/latest/"${BITBUCKET_COMMIT}"/g" ./k8s/staging-onex-passport.yml
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - gcloud container clusters get-credentials epsilo-staging-private --zone asia-southeast1-a --project $GCLOUD_PROJECT_ID
+            - kubectl apply -f ./k8s/staging-onex-passport.yml
+
+    dev:
+      - step:
+          name: Build and Push Docker Image in Dev Environment
+          image: epsilion/gcloud:latest
+          caches:
+            - docker
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - cp .env.dev ./.env
+            - docker build -t gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} .
+            - docker tag gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+            - docker push gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+          services:
+            - docker
+      - step:
+          name: Deploy to Dev Kubernetes
+          deployment: Dev
+          image: epsilion/gcloud:latest
+          script:
+            - export GCLOUD_PROJECT_ID=epsilo-285009
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - sed -i "s/latest/"${BITBUCKET_COMMIT}"/g" ./k8s/dev-onex-passport.yml
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - gcloud container clusters get-credentials epsilo-staging-private --zone asia-southeast1-a --project $GCLOUD_PROJECT_ID
+            - kubectl apply -f ./k8s/dev-onex-passport.yml
